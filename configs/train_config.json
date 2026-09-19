@@ -1,0 +1,11 @@
+{
+  "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+  "dataset_name": "medalpaca/medical_meadow_medical_flashcards",
+  "output_dir": "./outputs/medical_qwen_lora",
+  "batch_size": 4,
+  "max_length": 512,
+  "learning_rate": 2e-4,
+  "lora_r": 8,
+  "lora_alpha": 16.0,
+  "target_modules": ["q_proj", "v_proj"]
+}
