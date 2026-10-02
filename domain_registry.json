@@ -1,0 +1,23 @@
+{
+    "medical": {
+        "dataset_name": "medalpaca/medical_meadow_medical_flashcards",
+        "input_key": "input",
+        "output_key": "output",
+        "system_prompt": "You are an expert medical AI assistant. Provide accurate and structured clinical answers.",
+        "adapter_save_dir": "./outputs/exp_03_all_linear"
+    },
+    "code": {
+        "dataset_name": "iamtarun/python_code_instructions_18k_alpaca",
+        "input_key": "instruction",
+        "output_key": "output",
+        "system_prompt": "You are an expert Python software engineer. Provide clean, optimized, and bug-free code.",
+        "adapter_save_dir": "./outputs/domain_code_adapter"
+    },
+    "financial": {
+        "dataset_name": "gbharti/finance-alpaca",
+        "input_key": "instruction",
+        "output_key": "output",
+        "system_prompt": "You are a professional financial analyst. Provide precise economic and financial insights.",
+        "adapter_save_dir": "./outputs/domain_finance_adapter"
+    }
+}

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micropeft-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: micropeft
+  template:
+    metadata:
+      labels:
+        app: micropeft
+    spec:
+      containers:
+      - name: micropeft
+        image: micropeft-engine:v1
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: micropeft-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8000
+  selector:
+    app: micropeft
