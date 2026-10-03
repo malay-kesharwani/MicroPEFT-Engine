@@ -1,0 +1,16 @@
+{
+  "experiment_id": "exp_01_baseline",
+  "epoch_loss": 3.484355926513672,
+  "peak_vram_gb": 6.79,
+  "training_time_seconds": 115.7,
+  "hyperparameters": {
+    "id": "exp_01_baseline",
+    "lora_r": 8,
+    "lora_alpha": 16.0,
+    "lr": 2e-05,
+    "target_modules": [
+      "q_proj",
+      "v_proj"
+    ]
+  }
+}

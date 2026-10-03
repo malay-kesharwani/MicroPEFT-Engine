@@ -1,0 +1,16 @@
+{
+  "experiment_id": "exp_02_high_rank",
+  "epoch_loss": 3.21230411529541,
+  "peak_vram_gb": 7.7,
+  "training_time_seconds": 87.77,
+  "hyperparameters": {
+    "id": "exp_02_high_rank",
+    "lora_r": 16,
+    "lora_alpha": 32.0,
+    "lr": 1.5e-05,
+    "target_modules": [
+      "q_proj",
+      "v_proj"
+    ]
+  }
+}

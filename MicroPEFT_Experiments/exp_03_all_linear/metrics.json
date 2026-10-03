@@ -1,0 +1,18 @@
+{
+  "experiment_id": "exp_03_all_linear",
+  "epoch_loss": 2.334115505218506,
+  "peak_vram_gb": 7.84,
+  "training_time_seconds": 89.73,
+  "hyperparameters": {
+    "id": "exp_03_all_linear",
+    "lora_r": 8,
+    "lora_alpha": 16.0,
+    "lr": 2e-05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ]
+  }
+}

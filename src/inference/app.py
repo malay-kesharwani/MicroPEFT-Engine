@@ -1,77 +1,69 @@
-import os, time, torch, uvicorn
+import os
+import time
+import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 
-app = FastAPI(title="MicroPEFT Serving Engine", version="2.0.0")
-MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+app = FastAPI(title="MicroPEFT Engine API", version="1.0")
 
-DOMAIN_ADAPTERS = {
-    "medical": "./adapters/exp_03_all_linear",
-    "code": "./adapters/domain_code_adapter",
-    "financial": "./adapters/domain_finance_adapter"
-}
+# Dynamic Device Allocation (Local CPU + Docker/K8s GPU Compatible)
+DEVICE = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 
-tokenizer = None
-base_model = None
-loaded_adapters = {}
+BASE_MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
+ADAPTER_PATH = "./outputs/exp_03_all_linear"
 
-class MultiDomainQueryRequest(BaseModel):
-    prompt: str
-    domain: str = "medical"
-    max_tokens: int = 150
-    temperature: float = 0.3
+print(f"Loading base model on device: {DEVICE}...")
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME)
+base_model = AutoModelForCausalLM.from_pretrained(
+    BASE_MODEL_NAME,
+    torch_dtype=torch.float32 if DEVICE == "cpu" else torch.float16,
+)
 
-class MultiDomainQueryResponse(BaseModel):
-    domain_used: str
-    response: str
-    tokens_generated: int
-    latency_seconds: float
-    tokens_per_second: float
+if os.path.exists(ADAPTER_PATH):
+    print(f"Loading LoRA adapter from {ADAPTER_PATH}...")
+    model = PeftModel.from_pretrained(base_model, ADAPTER_PATH)
+else:
+    print("Warning: LoRA adapter path not found, using base model.")
+    model = base_model
 
-@app.on_event("startup")
-def load_base_engine():
-    global tokenizer, base_model
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    base_model = AutoModelForCausalLM.from_pretrained(MODEL_ID, torch_dtype=torch.float16, device_map="auto")
+model = model.to(DEVICE)
+model.eval()
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy", "base_model": MODEL_ID, "supported_domains": list(DOMAIN_ADAPTERS.keys())}
+class GenerateRequest(BaseModel):
+    prompt: str = Field(..., example="What are the symptoms of Diabetes?")
+    domain: str = Field("medical", example="medical")
+    max_tokens: int = Field(100, ge=1, le=512)
 
-@app.post("/v1/generate", response_model=MultiDomainQueryResponse)
-def generate_response(payload: MultiDomainQueryRequest):
-    domain = payload.domain.lower()
-    adapter_path = DOMAIN_ADAPTERS.get(domain, DOMAIN_ADAPTERS["medical"])
-    
-    if os.path.exists(adapter_path):
-        if domain not in loaded_adapters:
-            loaded_adapters[domain] = PeftModel.from_pretrained(base_model, adapter_path)
-            loaded_adapters[domain].eval()
-        active_model = loaded_adapters[domain]
-    else:
-        active_model = base_model
+@app.get("/")
+def read_root():
+    return {"status": "healthy", "device": DEVICE, "adapter_loaded": os.path.exists(ADAPTER_PATH)}
 
-    formatted_prompt = f"<|im_start|>user\n{payload.prompt}<|im_end|>\n<|im_start|>assistant\n"
-    inputs = tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
-    
-    start_time = time.time()
-    with torch.no_grad():
-        output_ids = active_model.generate(**inputs, max_new_tokens=payload.max_tokens, temperature=payload.temperature, pad_token_id=tokenizer.pad_token_id)
-    latency = time.time() - start_time
-    
-    generated_tokens = output_ids[0][inputs.input_ids.shape[1]:]
-    text = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
-    num_tokens = len(generated_tokens)
-    tps = num_tokens / latency if latency > 0 else 0
-    
-    return MultiDomainQueryResponse(
-        domain_used=domain, response=text, tokens_generated=num_tokens,
-        latency_seconds=round(latency, 3), tokens_per_second=round(tps, 2)
-    )
-
-if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+@app.post("/v1/generate")
+def generate_response(request: GenerateRequest):
+    try:
+        start_time = time.time()
+        formatted_prompt = f"<|im_start|>system\nYou are a helpful {request.domain} expert.<|im_end|>\n<|im_start|>user\n{request.prompt}<|im_end|>\n<|im_start|>assistant\n"
+        
+        inputs = tokenizer(formatted_prompt, return_tensors="pt").to(DEVICE)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=request.max_tokens,
+                do_sample=True,
+                temperature=0.7,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        generated_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+        latency = time.time() - start_time
+        
+        return {
+            "response": generated_text,
+            "domain_used": request.domain,
+            "latency_seconds": round(latency, 2)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
